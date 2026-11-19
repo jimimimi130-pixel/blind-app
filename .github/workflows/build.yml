@@ -3,23 +3,10 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-22.04
+    container:
+      image: kivy/buildozer:stable
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y git zip unzip openjdk-17-jdk python3-pip autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev libltdl-dev
-          pip install --upgrade pip
-          pip install buildozer cython==0.29.36
       - name: Fix buildozer.spec
         run: |
           python3 -c "
@@ -27,6 +14,7 @@ jobs:
           t=open('buildozer.spec').read()
           def set_val(k,v):
               global t
+              import re
               t=re.sub(r'^#?'+k+r'.*', k+' = '+v, t, flags=re.M)
               if k+' =' not in t:
                   t+='\n'+k+' = '+v+'\n'
@@ -34,19 +22,9 @@ jobs:
           set_val('android.minapi','21')
           set_val('android.sdk','33')
           set_val('android.ndk','25b')
-          set_val('android.build_tools','34.0.0')
           set_val('android.accept_sdk_license','True')
           open('buildozer.spec','w').write(t)
-          print(open('buildozer.spec').read())
           "
-      - name: Accept SDK licenses
-        run: |
-          mkdir -p $HOME/.buildozer/android/platform/android-sdk/licenses
-          echo "8933bad161af4178b1185d1a37fbf41ea5264" > $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-license
-          echo "d56f5187479451eabf01fb78af6dfcb131a6481e" > $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-preview-license
-          echo "24333f8a63b6825a656882fa2f2492895e9b0632" > $HOME/.buildozer/android/platform/android-sdk/licenses/android-sdk-arm-dbt-license
-          mkdir -p $HOME/.android
-          echo "8933bad161af4178b1185d1a37fbf41ea5264" > $HOME/.android/repositories.cfg
       - name: Build with Buildozer
         run: buildozer -v android debug
       - name: Upload APK
