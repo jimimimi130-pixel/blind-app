@@ -1,39 +1,25 @@
 name: Build APK
 on: [push]
+
 jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
+
       - name: Install dependencies
         run: |
           sudo apt update
           sudo apt install -y python3-pip python3-setuptools git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
           pip3 install --user --upgrade buildozer cython==0.29.33
-      - name: Fix buildozer.spec
-        run: |
-          python3 -c "
-          import re
-          t=open('buildozer.spec').read()
-          def set_val(k,v):
-              global t
-              import re
-              t=re.sub(r'^#?'+k+r'.*', k+' = '+v, t, flags=re.M)
-              if k+' =' not in t:
-                  t+='\n'+k+' = '+v+'\n'
-          set_val('android.api','33')
-          set_val('android.minapi','21')
-          set_val('android.sdk','33')
-          set_val('android.ndk','25b')
-          set_val('android.accept_sdk_license','True')
-          open('buildozer.spec','w').write(t)
-          "
+
       - name: Build with Buildozer
         run: |
           export PATH=$HOME/.local/bin:$PATH
           echo y | buildozer -v android debug
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: blind-apk
+          name: blind-app-apk
           path: bin/*.apk
