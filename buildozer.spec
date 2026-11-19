@@ -11,6 +11,7 @@ fullscreen = 0
 android.permissions = CAMERA,RECORD_AUDIO,INTERNET,VIBRATE,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
 android.api = 33
 android.minapi = 24
+android.ndk_api = 24
 android.ndk = 25b
 android.archs = arm64-v8a,armeabi-v7a
 p4a.branch = master
