@@ -1,22 +1,28 @@
 [app]
+
 title = Blind Assistant
 package.name = blindapp
 package.domain = org.blind.app
+
 source.dir = .
-source.include_exts = py,png,jpg,kv,atlas
+source.include_exts = py,png,jpg,kv,atlas,json,txt
+
 version = 1.0
-requirements = python3,kivy,plyer
+
+requirements = python3==3.11.6,kivy==2.3.0,pyjnius
+
 orientation = portrait
 fullscreen = 0
-android.permissions = CAMERA,RECORD_AUDIO
+
+android.permissions = INTERNET,VIBRATE
+
 android.api = 33
-android.minapi = 24
-android.ndk_api = 24
+android.minapi = 21
 android.ndk = 25b
-android.archs = arm64-v8a,armeabi-v7a
 android.accept_sdk_license = True
-p4a.branch = master
+android.archs = arm64-v8a
 
 [buildozer]
+
 log_level = 1
 warn_on_root = 1
