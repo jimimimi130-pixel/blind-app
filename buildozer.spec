@@ -16,7 +16,7 @@ requirements = python3,kivy,pyjnius
 orientation = portrait
 fullscreen = 0
 
-android.permissions = INTERNET,VIBRATE
+android.permissions = INTERNET,VIBRATE,CAMERA 
 
 android.api = 33
 android.minapi = 21
