@@ -1,122 +1,214 @@
-# main.py - تطبيق مساعد المكفوفين APK
+from datetime import datetime
 from kivy.app import App
+from kivy.clock import Clock
+from kivy.core.window import Window
+from kivy.utils import platform
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
 from kivy.uix.label import Label
-from kivy.uix.camera import Camera
-from kivy.clock import Clock
-import cv2
 
-try:
-    from plyer import tts, vibrator
-    HAS_PLYER = True
-except:
-    HAS_PLYER = False
 
-class BlindAppLayout(BoxLayout):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.orientation = 'vertical'
-        self.padding = 15
-        self.spacing = 12
-        self.add_widget(Label(text='مساعد المكفوفين الذكي', font_size='28sp', size_hint=(1, 0.12)))
-        self.camera = Camera(resolution=(640, 480), play=True)
-        self.camera.size_hint = (1, 0.52)
-        self.add_widget(self.camera)
-        self.status = Label(text='اضغط تشغيل للبدء', font_size='22sp', size_hint=(1, 0.16), color=(0, 1, 0, 1))
-        self.add_widget(self.status)
-        self.btn_start = Button(text='تشغيل المساعد', font_size='24sp', size_hint=(1, 0.12), background_color=(0, 0.8, 0, 1))
-        self.btn_start.bind(on_press=self.toggle)
-        self.add_widget(self.btn_start)
-        self.btn_detect = Button(text='كشف الآن', font_size='22sp', size_hint=(1, 0.12), background_color=(0, 0.5, 1, 1))
-        self.btn_detect.bind(on_press=self.detect_now)
-        self.add_widget(self.btn_detect)
-        self.is_running = False
-        self.event = None
-        self.hog = cv2.HOGDescriptor()
-        self.hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
-        self.face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+TEXTS = {
+    "ar": {
+        "title": "تطبيق المساعد الذكي (Blind App)",
+        "ready": "جاهز. اضغط على أي زر للقراءة أو التنبيه.",
+        "time_btn": "الوقت والحالة",
+        "alert_btn": "تنبيه سريع",
+        "lang_btn": "اللغة: العربية",
+        "status_msg": "الساعة الآن {time}. النظام يعمل بنجاح.",
+        "alert_msg": "تم تفعيل التنبيه السريع.",
+        "lang_changed": "تم التبديل إلى اللغة العربية.",
+    },
+    "ku": {
+        "title": "Alîkarê Jîr (Blind App)",
+        "ready": "Amade ye. Ji bo xwendin an hişyariyê bişkojkeyekê bitikîne.",
+        "time_btn": "Dem û Rewş",
+        "alert_btn": "Hişyariya Lezgîn",
+        "lang_btn": "Ziman: Kurmancî",
+        "status_msg": "Dem niha {time} e. Sîstem bi rêkûpêk dixebite.",
+        "alert_msg": "Hişyariya lezgîn hate çalakkirin.",
+        "lang_changed": "Ziman hate guhertin bo Kurmancî.",
+    },
+    "en": {
+        "title": "Blind App Assistant",
+        "ready": "Ready. Tap any button for spoken feedback or alert.",
+        "time_btn": "Time & Status",
+        "alert_btn": "Quick Alert",
+        "lang_btn": "Language: English",
+        "status_msg": "Current time is {time}. System is running normally.",
+        "alert_msg": "Quick alert triggered.",
+        "lang_changed": "Switched to English.",
+    },
+}
+
+
+class DeviceAccessibility:
+    def __init__(self):
+        self._tts = None
+        self._vibrator = None
+        self._setup_android()
+
+    def _setup_android(self):
+        if platform != "android":
+            return
+        try:
+            from jnius import autoclass
+
+            PythonActivity = autoclass("org.kivy.android.PythonActivity")
+            Context = autoclass("android.content.Context")
+            TextToSpeech = autoclass("android.speech.tts.TextToSpeech")
+
+            activity = PythonActivity.mActivity
+            self._tts = TextToSpeech(activity, None)
+            self._vibrator = activity.getSystemService(Context.VIBRATOR_SERVICE)
+        except Exception:
+            self._tts = None
+            self._vibrator = None
+
+    def set_lang(self, lang_code):
+        if platform != "android" or not self._tts:
+            return
+        try:
+            from jnius import autoclass
+
+            Locale = autoclass("java.util.Locale")
+            if lang_code == "ar":
+                self._tts.setLanguage(Locale("ar"))
+            elif lang_code == "ku":
+                self._tts.setLanguage(Locale("ku"))
+            else:
+                self._tts.setLanguage(Locale.US)
+        except Exception:
+            pass
 
     def speak(self, text):
-        self.status.text = text
-        if HAS_PLYER:
+        if platform == "android" and self._tts:
             try:
-                tts.speak(text)
-            except:
-                pass
-        if "انتبه" in text:
-            try:
-                vibrator.vibrate(time=0.8)
-            except:
-                pass
+                from jnius import autoclass
 
-    def toggle(self, instance):
-        if not self.is_running:
-            self.is_running = True
-            self.btn_start.text = 'ايقاف المساعد'
-            self.btn_start.background_color = (1, 0, 0, 1)
-            self.speak("تم تشغيل المساعد الذكي، امشي بأمان")
-            self.event = Clock.schedule_interval(self.auto_detect, 2.0)
-        else:
-            self.is_running = False
-            self.btn_start.text = 'تشغيل المساعد'
-            self.btn_start.background_color = (0, 0.8, 0, 1)
-            if self.event:
-                self.event.cancel()
-            self.speak("تم ايقاف المساعد")
-
-    def auto_detect(self, dt):
-        self.detect_now(None)
-
-    def detect_now(self, instance):
-        try:
-            img_path = "/sdcard/blind_temp.png"
-            self.camera.export_to_png(img_path)
-        except:
-            img_path = "blind_temp.png"
-            try:
-                self.camera.export_to_png(img_path)
-            except:
-                self.speak("لا استطيع التقاط صورة")
+                TextToSpeech = autoclass("android.speech.tts.TextToSpeech")
+                self._tts.speak(text, TextToSpeech.QUEUE_FLUSH, None, "blind_app_msg")
                 return
-        img = cv2.imread(img_path)
-        if img is None:
-            self.speak("حاول مرة اخرى")
-            return
-        h, w = img.shape[:2]
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        boxes, _ = self.hog.detectMultiScale(img, winStride=(8, 8))
-        person_count = len(boxes)
-        person_close = False
-        for (x, y, ww, hh) in boxes:
-            if ww * hh > (w * h * 0.15):
-                person_close = True
-        faces = self.face_cascade.detectMultiScale(gray, 1.3, 5)
-        center = gray[int(h*0.3):int(h*0.9), int(w*0.3):int(w*0.7)]
-        edges = cv2.Canny(center, 50, 150)
-        edge_density = (edges > 0).mean()
-        if person_close:
-            self.status.color = (1, 0, 0, 1)
-            self.speak("انتبه، شخص قريب جدا امامك")
-        elif person_count > 0:
-            self.status.color = (1, 1, 0, 1)
-            self.speak(f"يوجد {person_count} شخص امامك")
-        elif len(faces) > 0:
-            self.speak("يوجد شخص ينظر اليك امامك")
-        elif edge_density > 0.18:
-            self.status.color = (1, 0, 0, 1)
-            self.speak("انتبه، عائق كبير امامك، توقف")
-        elif edge_density > 0.10:
-            self.speak("يوجد شيء امامك، امشي بحذر")
-        else:
-            self.status.color = (0, 1, 0, 1)
-            self.speak("الطريق آمن، اكمل المشي")
+            except Exception:
+                pass
+        print(f"[TTS]: {text}")
 
-class BlindAssistantApp(App):
+    def vibrate(self, duration_ms=120):
+        if platform == "android" and self._vibrator:
+            try:
+                if self._vibrator.hasVibrator():
+                    self._vibrator.vibrate(duration_ms)
+                return
+            except Exception:
+                pass
+        print(f"[VIBRATE]: {duration_ms}ms")
+
+
+class BlindRootScreen(BoxLayout):
+    def __init__(self, device, **kwargs):
+        super().__init__(orientation="vertical", padding=18, spacing=14, **kwargs)
+        self.device = device
+        self.languages = ["ar", "ku", "en"]
+        self.current_idx = 0
+
+        self.lbl_title = Label(
+            font_size="24sp",
+            bold=True,
+            size_hint=(1, 0.18),
+            halign="center",
+            valign="middle",
+        )
+        self.lbl_title.bind(size=self.lbl_title.setter("text_size"))
+
+        self.lbl_status = Label(
+            font_size="21sp",
+            size_hint=(1, 0.28),
+            halign="center",
+            valign="middle",
+        )
+        self.lbl_status.bind(size=self.lbl_status.setter("text_size"))
+
+        self.btn_time = Button(
+            font_size="22sp",
+            size_hint=(1, 0.18),
+            background_color=(0.15, 0.45, 0.75, 1),
+        )
+        self.btn_time.bind(on_press=self.handle_time)
+
+        self.btn_alert = Button(
+            font_size="22sp",
+            size_hint=(1, 0.18),
+            background_color=(0.75, 0.25, 0.2, 1),
+        )
+        self.btn_alert.bind(on_press=self.handle_alert)
+
+        self.btn_lang = Button(
+            font_size="20sp",
+            size_hint=(1, 0.18),
+            background_color=(0.2, 0.55, 0.35, 1),
+        )
+        self.btn_lang.bind(on_press=self.handle_language)
+
+        self.add_widget(self.lbl_title)
+        self.add_widget(self.lbl_status)
+        self.add_widget(self.btn_time)
+        self.add_widget(self.btn_alert)
+        self.add_widget(self.btn_lang)
+
+        self.apply_language(announce=False)
+        Clock.schedule_once(lambda dt: self.device.speak(self.strings()["ready"]), 0.8)
+
+    @property
+    def lang_code(self):
+        return self.languages[self.current_idx]
+
+    def strings(self):
+        return TEXTS[self.lang_code]
+
+    def apply_language(self, announce=True):
+        s = self.strings()
+        self.lbl_title.text = s["title"]
+        self.lbl_status.text = s["ready"]
+        self.btn_time.text = s["time_btn"]
+        self.btn_alert.text = s["alert_btn"]
+        self.btn_lang.text = s["lang_btn"]
+        self.device.set_lang(self.lang_code)
+        if announce:
+            self.device.speak(s["lang_changed"])
+
+    def handle_time(self, instance):
+        self.device.vibrate(100)
+        now = datetime.now().strftime("%H:%M")
+        msg = self.strings()["status_msg"].format(time=now)
+        self.lbl_status.text = msg
+        self.device.speak(msg)
+
+    def handle_alert(self, instance):
+        self.device.vibrate(250)
+        msg = self.strings()["alert_msg"]
+        self.lbl_status.text = msg
+        self.device.speak(msg)
+
+    def handle_language(self, instance):
+        self.device.vibrate(80)
+        self.current_idx = (self.current_idx + 1) % len(self.languages)
+        self.apply_language(announce=True)
+
+
+class BlindApp(App):
     def build(self):
-        return BlindAppLayout()
-    def on_pause(self):
-        return True
+        Window.clearcolor = (0.06, 0.06, 0.08, 1)
+        self.device = DeviceAccessibility()
+        return BlindRootScreen(self.device)
 
-if __name__ == '__main__':
-    BlindAssistantApp().run()
+    def on_stop(self):
+        if hasattr(self, "device") and self.device._tts:
+            try:
+                self.device._tts.stop()
+                self.device._tts.shutdown()
+            except Exception:
+                pass
+
+
+if __name__ == "__main__":
+    BlindApp().run()
